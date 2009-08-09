@@ -18,9 +18,19 @@ class TV_Memcached_Factory {
 	}
 
 	private static function getServerList($env) {
+		$arr = array();
+		if (is_numeric($env)) {
+			for ($i = 0; $i < $env; ++$i) {
+				$arr[] = array('localhost', 11211+$i);
+			}
+		}
+
 		switch ($env) {
 		case 'dev':
-			return array();
+			for ($i = 11211; $i <= 11243; ++$i) {
+				$arr[] = array('localhost', $i);
+			}
+			return $arr;
 		default:
 			return array();
 		}
