@@ -2,7 +2,9 @@
 
 class TV_Memcached extends Memcached {
 
-	public function construct(array $serverList, $prefix = '') {
+	public function __construct(array $serverList, $prefix = '') {
+		parent::__construct();
+
 		if (strlen($prefix)>0) {
 			$this->setOption(Memcached::OPT_PREFIX_KEY, $prefix);
 		}
@@ -13,13 +15,16 @@ class TV_Memcached extends Memcached {
 		
 		$this->setOption(Memcached::OPT_LIBKETAMA_COMPATIBLE, true);
 		
-		$this->setOption(Memcached::OPT_DISTRIBUTION, 
-			Memcached::DISTRIBUTION_CONSISTENT);
+		//$this->setOption(Memcached::OPT_DISTRIBUTION, 
+		//	Memcached::DISTRIBUTION_CONSISTENT);
+		$this->setOption(Memcached::OPT_DISTRIBUTION,
+			Memcached::DISTRIBUTION_MODULA);
 		
 		//Enables asynchronous I/O.
 		$this->setOption(Memcached::OPT_NO_BLOCK, true);
 
-		$this->setOption(Memcached::OPT_BINARY_PROTOCOL, true);
+		//this caused the application to slow down dramatically
+		//$this->setOption(Memcached::OPT_BINARY_PROTOCOL, true);
 
 		//Enables or disables caching of DNS lookups.
 		$this->setOption(Memcached::OPT_CACHE_LOOKUPS, true);
@@ -34,6 +39,9 @@ class TV_Memcached extends Memcached {
 			$this->setOption(Memcached::OPT_SERIALIZER, 
 				Memcached::SERIALIZER_IGBINARY);
 		}
+
+		//@todo if this fails, log it/emit warning.
+		$this->addServers($serverList);
 	}
 }
 
