@@ -1,13 +1,21 @@
 <?php
 
 class TV_Memcached extends Memcached {
+	const DEFAULT_TTL = 3600;
 
     protected $pre_expire_last_mcd_result = false;
 	protected $num_servers = NULL;
 	public $perfmon_enabled = false;
 
-	const DEFAULT_TTL = 3600;
 
+    /**
+     * __construct 
+     * 
+     * @param array $serverList which servers to populate the pool with
+     * @param string $prefix what prefix 'namespace' to create keys with 
+     * @access public
+     * @return void
+     */
 	public function __construct(array $serverList, $prefix = '') {
 		parent::__construct();
 
@@ -49,6 +57,12 @@ class TV_Memcached extends Memcached {
 		$this->addServers($serverList);
 	}
 
+    /**
+     * getNumServers - how many servers in the pool 
+     * 
+     * @access public
+     * @return int
+     */
 	public function getNumServers() {
 		return $this->num_servers;
 	}
@@ -61,7 +75,7 @@ class TV_Memcached extends Memcached {
      *  2. Memcached
      * Logs the results to PQP.
      * To prevent stampedes, it provides a probabalistic timeout mechanism.
-     * Call GNE::mcd_res_ok to see if a valid result was
+     * Call TV_Memcached::lastResFound to see if a valid result was
      * returned.
      * ref: http://lists.danga.com/pipermail/memcached/2007-July/004807.html
      * There is a slight race condition if two clients try to expire the cache
@@ -74,10 +88,7 @@ class TV_Memcached extends Memcached {
      * @return stored value or false on error. 
      */
 	public function tvGet($key) {
-        $pqp_enabled = class_exists("PQP_Console") && PQP_Console::isEnabled();
-        if ($pqp_enabled) {
-            $start = microtime(true);
-        }
+        $pqp_start = microtime(true);
         
         // Try fetching from the registry first 
         $reg = GNE_Registry::getInstance();
@@ -93,63 +104,56 @@ class TV_Memcached extends Memcached {
                 }
             }
         }
+
         
+        //caching layer local to the request
         if ($reg->hasKey($key)) {
             
             $data = $reg->get($key);
             
-            // Log in PQP that the item was found in the Registry
-            if ($pqp_enabled) {
-                PQP_Console::logCache($key, "registry", $start, $data);
-            }
+            PQP_Console::logCache($key, "registry", $pqp_start, $data);
             return $data;
-        } else {
+        } 
             
-            $result = $this->get($key, null, $cas);
-			
-            //reset pre-expire token when we retrieve a new value
-            $this->pre_expire_last_mcd_result = false;
-            
-            if ($this->getResultCode() == Memcached::RES_SUCCESS) {
-                //store the cas token to registry. we may need it.
-                $reg->set('cas_ctrl:' . $key, $cas);
-                
-				//key expires
-                if ($result['ttl'] > 0) {
-                
-					//how much time is left until value expires
-					$time_delta = $result['expire_on'] - time();
+        $result = $this->get($key, null, $cas);
 
-					//what percentage are we to reaching the TTL?
-					$normal_delta = ($time_delta / $result['ttl']) * 100;
+        //reset pre-expire token when we retrieve a new value
+        $this->pre_expire_last_mcd_result = false;
 
-					//the probability of clearing the cache goes to 100 
-					//as the delta approaches 0
-					$probability = round(100 / (abs($normal_delta) + 1));
-					$clear_value = (mt_rand(1, 100) <= $probability);
+        if ($this->getResultCode() == Memcached::RES_SUCCESS) {
+            //store the cas token to registry. we may need it.
+            $reg->set('cas_ctrl:' . $key, $cas);
 
-					//if it already expired or it's turn is up, expire it.
-					if ($time_delta < 0 || $clear_value) {
-						$this->preExpireLastRes();
-						return false;
-					}
-				}
-                
-                $data = $result['value'];
-                if ($pqp_enabled) {
-                    // Report to PQP a cache hit in memcached
-                    PQP_Console::logCache($key, "memcached", $start, $data);
+            //key expires
+            if ($result['ttl'] > 0) {
+
+                //how much time is left until value expires
+                $time_delta = $result['expire_on'] - time();
+
+                //what percentage are we to reaching the TTL?
+                $normal_delta = ($time_delta / $result['ttl']) * 100;
+
+                //the probability of clearing the cache goes to 100 
+                //as the delta approaches 0
+                $probability = round(100 / (abs($normal_delta) + 1));
+                $clear_value = (mt_rand(1, 100) <= $probability);
+
+                //if it already expired or it's turn is up, expire it.
+                if ($time_delta < 0 || $clear_value) {
+                    $this->preExpireLastRes();
+                    PQP_Console::logCache($key, "miss (pre-expirey)", $pqp_start);
+                    return false;
                 }
-                
-                $reg->set($key, $data);
-                return $data;
             }
+
+            $data = $result['value'];
+            PQP_Console::logCache($key, "memcached", $pqp_start, $data);
+
+            $reg->set($key, $data);
+            return $data;
         }
-        
-        if ($pqp_enabled) {
-            // Report cache miss to PQP
-            PQP_Console::logCache($key, "miss", $start);
-        }
+
+        PQP_Console::logCache($key, "miss", $pqp_start);
         return false;
 	}
 
@@ -228,6 +232,16 @@ class TV_Memcached extends Memcached {
             }
 	}
 
+    /**
+     * lastResFound 
+     * did the last call to TV_Memcached::tvGet return a value? Use
+     * for checking falsyness of the returned value.
+     *
+     * This function respects the anti-stampede mechanism 
+     * 
+     * @access public
+     * @return bool
+     */
     public function lastResFound() {
         if ($this->pre_expire_last_mcd_result) {
             return false;
@@ -235,6 +249,13 @@ class TV_Memcached extends Memcached {
         return ($this->getResultCode() == Memcached::RES_SUCCESS);
     }
 
+    /**
+     * preExpireLastRes 
+     *
+     * 
+     * @access protected
+     * @return void
+     */
     protected function preExpireLastRes()
     {
         if ($this->getResultCode() == Memcached::RES_SUCCESS) {
