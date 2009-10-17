@@ -1,5 +1,18 @@
 <?php
 
+/**
+ * TV_Memcached 
+ *
+ * memcached client for tv.com
+ * implements probabalistic cache expirery through tvGet & tvSet
+ * which helps to prevent database stampedes
+ *
+ * 
+ * @uses Memcached
+ * @version $id$
+ * @author Matthew Hooker <matthew.hooker@cbs.com> 
+ * @copyright CBS Interactive, 2009
+ */
 class TV_Memcached extends Memcached {
     const DEFAULT_TTL = 3600;
 
@@ -274,4 +287,3 @@ class TV_Memcached extends Memcached {
  * End:
  * vim: noet sw=4 ts=4
  */
-
