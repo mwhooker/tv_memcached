@@ -1,11 +1,11 @@
 <?php
 
 class TV_Memcached extends Memcached {
-	const DEFAULT_TTL = 3600;
+    const DEFAULT_TTL = 3600;
 
     protected $pre_expire_last_mcd_result = false;
-	protected $num_servers = NULL;
-	public $perfmon_enabled = false;
+    protected $num_servers = NULL;
+    public $perfmon_enabled = false;
 
 
     /**
@@ -16,46 +16,46 @@ class TV_Memcached extends Memcached {
      * @access public
      * @return void
      */
-	public function __construct(array $serverList, $prefix = '') {
-		parent::__construct();
+    public function __construct(array $serverList, $prefix = '') {
+        parent::__construct();
 
-		if (strlen($prefix)>0) {
-			$this->setOption(Memcached::OPT_PREFIX_KEY, $prefix);
-		}
-		
-		//a very fast hash with good distribution, 
-		//but mutually exclusive w/ LIBKETAMA
-		//$this->setOption(Memcached::OPT_HASH, Memcached::HASH_MURMUR); 
-		
-		$this->setOption(Memcached::OPT_LIBKETAMA_COMPATIBLE, true);
-		
-		$this->setOption(Memcached::OPT_DISTRIBUTION, 
-			Memcached::DISTRIBUTION_CONSISTENT);
-		
-		//Enables asynchronous I/O.
-		$this->setOption(Memcached::OPT_NO_BLOCK, true);
+        if (strlen($prefix)>0) {
+            $this->setOption(Memcached::OPT_PREFIX_KEY, $prefix);
+        }
 
-		//this caused the application to slow down dramatically
-		//$this->setOption(Memcached::OPT_BINARY_PROTOCOL, true);
+        //a very fast hash with good distribution, 
+        //but mutually exclusive w/ LIBKETAMA
+        //$this->setOption(Memcached::OPT_HASH, Memcached::HASH_MURMUR); 
 
-		//Enables or disables caching of DNS lookups.
-		$this->setOption(Memcached::OPT_CACHE_LOOKUPS, true);
+        $this->setOption(Memcached::OPT_LIBKETAMA_COMPATIBLE, true);
 
-		//Specifies the failure limit for server connection attempts. 
-		//The server will be removed after this many continuous connection 
-		//failures.
-		$this->setOption(Memcached::OPT_SERVER_FAILURE_LIMIT, 5);
-		
-		//if we have the igbinary serializer, use it
-		if (Memcached::HAVE_IGBINARY) {
-			$this->setOption(Memcached::OPT_SERIALIZER, 
-				Memcached::SERIALIZER_IGBINARY);
-		}
+        $this->setOption(Memcached::OPT_DISTRIBUTION, 
+            Memcached::DISTRIBUTION_CONSISTENT);
 
-		$this->num_servers = count($serverList);
-		//@todo if this fails, log it/emit warning.
-		$this->addServers($serverList);
-	}
+        //Enables asynchronous I/O.
+        $this->setOption(Memcached::OPT_NO_BLOCK, true);
+
+        //this caused the application to slow down dramatically
+        //$this->setOption(Memcached::OPT_BINARY_PROTOCOL, true);
+
+        //Enables or disables caching of DNS lookups.
+        $this->setOption(Memcached::OPT_CACHE_LOOKUPS, true);
+
+        //Specifies the failure limit for server connection attempts. 
+        //The server will be removed after this many continuous connection 
+        //failures.
+        $this->setOption(Memcached::OPT_SERVER_FAILURE_LIMIT, 5);
+
+        //if we have the igbinary serializer, use it
+        if (Memcached::HAVE_IGBINARY) {
+            $this->setOption(Memcached::OPT_SERIALIZER, 
+                Memcached::SERIALIZER_IGBINARY);
+        }
+
+        $this->num_servers = count($serverList);
+        //@todo if this fails, log it/emit warning.
+        $this->addServers($serverList);
+    }
 
     /**
      * getNumServers - how many servers in the pool 
@@ -63,10 +63,10 @@ class TV_Memcached extends Memcached {
      * @access public
      * @return int
      */
-	public function getNumServers() {
-		return $this->num_servers;
-	}
-	
+    public function getNumServers() {
+        return $this->num_servers;
+    }
+
     /**
      * retrieve the specified key from cache. 
      *
@@ -87,34 +87,34 @@ class TV_Memcached extends Memcached {
      * @param $key string cache key. no spaces allowed.
      * @return stored value or false on error. 
      */
-	public function tvGet($key) {
+    public function tvGet($key) {
         $pqp_start = microtime(true);
-        
+
         // Try fetching from the registry first 
         $reg = GNE_Registry::getInstance();
-        
+
         if (gne_is_cnet()) {
             if (isset($_REQUEST['clear_cache']) 
                 || isset($_REQUEST['del_cache']) 
                 || isset($_REQUEST['del_mc']) 
                 || isset($_REQUEST['delmc'])) {
-                $this->delete($key);
-                if ($reg->hasKey($key)) {
-                    $reg->remove($key);
+                    $this->delete($key);
+                    if ($reg->hasKey($key)) {
+                        $reg->remove($key);
+                    }
                 }
-            }
         }
 
-        
+
         //caching layer local to the request
         if ($reg->hasKey($key)) {
-            
+
             $data = $reg->get($key);
-            
+
             PQP_Console::logCache($key, "registry", $pqp_start, $data);
             return $data;
         } 
-            
+
         $result = $this->get($key, null, $cas);
 
         //reset pre-expire token when we retrieve a new value
@@ -155,7 +155,7 @@ class TV_Memcached extends Memcached {
 
         PQP_Console::logCache($key, "miss", $pqp_start);
         return false;
-	}
+    }
 
     /**
      * set_cache store the provided value to cache
@@ -172,32 +172,32 @@ class TV_Memcached extends Memcached {
      * @access public
      * @return bool
      */
-	public function tvSet($key, $value, $ttl = self::DEFAULT_TTL) {
-		//ttl shouldn't be nagative
-		if (intval($ttl) < 0) {
-			self::DEFAULT_TTL;
-		}
+    public function tvSet($key, $value, $ttl = self::DEFAULT_TTL) {
+        //ttl shouldn't be nagative
+        if (intval($ttl) < 0) {
+            self::DEFAULT_TTL;
+        }
         //wrap value in the below tuple to facilitate pre-expirey
         $mcd_value = array(
             'value' => $value, 
             'expire_on' => time() + $ttl, 
             'ttl' => intval($ttl));
-        
+
         //this is supposed to estimate our key distribution.
         //@todo re-enable this using Memcached::getServerByKey
         if ($this->perfmon_enabled && false && $this->getNumServers() > 0) {
             $probe = PerfMon::getProbe('cache');
-            
+
             $probe->setMessage(array(
                 "key" => $key, 
                 "assigned_server" => ((crc32($key) >> 16) & 0x7fff) % $this->num_servers, 
                 "payload_size" => strlen(serialize($value))));
         }
-        
+
         // Add to Registry
         $reg = GNE_Registry::getInstance();
         $reg->set($key, $mcd_value['value']);
-        
+
         //if there's a cas value, we're re-setting the value after a pre-expirey
         $cas_key = 'cas_ctrl:' . $key;
         if (!$reg->hasKey($cas_key)) {
@@ -209,7 +209,7 @@ class TV_Memcached extends Memcached {
             $reg->remove($cas_key);
             return $this->cas($cas_token, $key, $mcd_value, 86400);
         }
-	}
+    }
 
     /**
      * check to see if key exists
@@ -220,17 +220,19 @@ class TV_Memcached extends Memcached {
      */
     public function keyExists($key)
     {
-        if ($this->get_cache($key) == false 
-            && $this->getResultCode() == Memcached::RES_NOTFOUND) {
+        if ($this->get_cache($key) == false
+            && $this->getResultCode() == Memcached::RES_NOTFOUND) 
+        {
             return false;
-        } else 
+        } else { 
             if ($this->getResultCode() == Memcached::RES_SUCCESS) {
                 return true;
             } else {
                 //possibly throw error
                 return false;
             }
-	}
+        }
+    }
 
     /**
      * lastResFound 
@@ -262,10 +264,7 @@ class TV_Memcached extends Memcached {
             $this->pre_expire_last_mcd_result = true;
         }
     }
-
 }
-
-
 
 
 /*
