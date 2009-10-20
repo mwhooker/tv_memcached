@@ -152,7 +152,7 @@ class TV_Memcached extends Memcached {
                 $clear_value = (mt_rand(1, 100) <= $probability);
 
                 //if it already expired or it's turn is up, expire it.
-                if ($time_delta < 0 || $clear_value) {
+                if ($time_delta <= 0 || $clear_value) {
                     $this->preExpireLastRes();
                     PQP_Console::logCache($key, "miss (pre-expirey)", $pqp_start);
                     return false;
