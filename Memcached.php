@@ -29,8 +29,8 @@ class TV_Memcached extends Memcached {
      * @access public
      * @return void
      */
-    public function __construct(array $serverList, $prefix = '') {
-        parent::__construct();
+    public function __construct(array $serverList, $persistent_id = NULL, $prefix = NULL) {
+        parent::__construct($persistent_id);
 
         if (strlen($prefix)>0) {
             $this->setOption(Memcached::OPT_PREFIX_KEY, $prefix);
@@ -65,9 +65,13 @@ class TV_Memcached extends Memcached {
                 Memcached::SERIALIZER_IGBINARY);
         }
 
-        $this->num_servers = count($serverList);
         //@todo if this fails, log it/emit warning.
-        $this->addServers($serverList);
+		if (!count($this->getServerList())) {
+			$this->addServers($serverList);
+		}
+
+        $this->num_servers = count($this->getServerList());
+		
     }
 
     /**
@@ -124,7 +128,7 @@ class TV_Memcached extends Memcached {
 
             $data = $reg->get($key);
 
-            PQP_Console::logCache($key, "registry", $pqp_start, $data);
+            $this->pqp($key, "registry", $pqp_start, $data);
             return $data;
         } 
 
@@ -148,25 +152,25 @@ class TV_Memcached extends Memcached {
 
                 //the probability of clearing the cache goes to 100 
                 //as the delta approaches 0
-                $probability = round(100 / (abs($normal_delta) + 1));
+                $probability = round(100 / ($normal_delta + 1));
                 $clear_value = (mt_rand(1, 100) <= $probability);
 
                 //if it already expired or it's turn is up, expire it.
                 if ($time_delta <= 0 || $clear_value) {
                     $this->preExpireLastRes();
-                    PQP_Console::logCache($key, "miss (pre-expirey)", $pqp_start);
+                    $this->pqp($key, "miss (pre-expirey)", $pqp_start);
                     return false;
                 }
             }
 
             $data = $result['value'];
-            PQP_Console::logCache($key, "memcached", $pqp_start, $data);
+            $this->pqp($key, "memcached", $pqp_start, $data);
 
             $reg->set($key, $data);
             return $data;
         }
 
-        PQP_Console::logCache($key, "miss", $pqp_start);
+        $this->pqp($key, "miss", $pqp_start);
         return false;
     }
 
@@ -277,6 +281,12 @@ class TV_Memcached extends Memcached {
             $this->pre_expire_last_mcd_result = true;
         }
     }
+
+	protected function pqp($key, $status, $start = 0, $result = null) {
+		if (class_exists('PQP_Console')) {
+			PQP_Console::logCache($key, $status, $start, $result, 3);
+		}
+	}
 }
 
 
